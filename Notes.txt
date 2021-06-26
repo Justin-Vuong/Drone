@@ -1,0 +1,29 @@
+maskable interrupt vs non maskable interrupt	
+
+	A non-maskable interrupt is a hardware interrupt that cannot be disabled or ignored by the instructions of CPU.
+	-often used when response time is critical or when an interrupt should never be disable during normal system operation. 
+	Such uses include reporting non-recoverable hardware errors, system debugging and profiling and handling of species cases like system resets.
+
+	Maskable interrupts help to handle lower priority tasks
+	-The interrupts are either edge-triggered or level-triggered
+
+To pass define to C from the compiler, use -DdefineVal
+
+Using High speed external clock (HSE)
+
+PLL phase locked loop 
+	-It allows us to split the oscillator frequency and generate other frequencies with the same phase shift so that the output is consistent
+
+
+Steps for setting up clock. See RCC registers in datasheet
+1. Enable high speed external clock (HSE) and wait for it to be ready
+2. Set the "power enable clock" and "voltage regulator"
+3. Configure the flash related settings
+	-enable Prefetch buffer. Prefetching refers to the retrieving and storing of data into the buffer memory (cache) before the processor requires the data.
+	-flash latency = 5 clock cycles. 
+Excluded
+	-enable Instruction cache. Cache frequent instructions
+	-enable data cache.
+4. Configure rescalars for the clocks: main CLU clock (HCLK) and peripheral clocks (PCLK1 and PCLK2)
+5. Configure the main phase-locked loop (PLL)
+6. Select the Clock Source and wait for it to be set
