@@ -14,16 +14,14 @@ Using High speed external clock (HSE)
 PLL phase locked loop 
 	-It allows us to split the oscillator frequency and generate other frequencies with the same phase shift so that the output is consistent
 
+There is an external oscillator on the ST link which allows the clock speed to reach 216 MHz
 
-Steps for setting up clock. See RCC registers in datasheet
-1. Enable high speed external clock (HSE) and wait for it to be ready
-2. Set the "power enable clock" and "voltage regulator"
-3. Configure the flash related settings
-	-enable Prefetch buffer. Prefetching refers to the retrieving and storing of data into the buffer memory (cache) before the processor requires the data.
-	-flash latency = 5 clock cycles. 
-Excluded
-	-enable Instruction cache. Cache frequent instructions
-	-enable data cache.
-4. Configure rescalars for the clocks: main CLU clock (HCLK) and peripheral clocks (PCLK1 and PCLK2)
-5. Configure the main phase-locked loop (PLL)
-6. Select the Clock Source and wait for it to be set
+
+APB = Advanced High-performance Bus
+HSE = High Speed External Clock
+HCLK = Main CLU Clock 
+PCLK = Peripheral Clocks 
+PLL = Phase-Locked Loop
+RCC = Reset and Control Clock
+AHB = Advanced High-performance Bus
+ARR = Auto Reload Register

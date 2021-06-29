@@ -1,67 +1,76 @@
-CC = arm-none-eabi-gcc
-CP = arm-none-eabi-objcopy
-SZ = arm-none-eabi-size
+PROJ_NAME = drone
 
-HEX = $(CP) -O ihex
-BIN = $(CP) -O binary -S
-
-TARGET = drone
+# Directory containing all relevent source code
+CMSIS_DIR = CMSIS
+ST_DIR = STM32
 BUILD_DIR = build
+LINKER_SCRIPT = $(ST_DIR)/STM32F767ZITx_FLASH.ld
+ST_SRC_DIR = STM32/Src
 SRC_DIR = Src
 
-C_SOURCES = \
-Src/main.c
+##### Toolchain #####
+TRIPLE  = 	arm-none-eabi
+CC 		=	${TRIPLE}-gcc
+LD 		= 	${TRIPLE}-ld
+AS 		= 	${TRIPLE}-as
+GDB 	= 	${TRIPLE}-gdb
+OBJCOPY =  	${TRIPLE}-objcopy
 
-C_INCLUDES = \
--IInc \
--ICMSIS_Inc \
--IStm32_Inc
-
-LIBS = -lc -lm -lnosys
-
-OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(C_SOURCES:.c=.o)))
+#### Hardware Info ####
 CPU = -mcpu=cortex-m7
 FPU = -mfpu=fpv5-d16
 FLOAT-ABI = -mfloat-abi=hard
-MCU = $(CPU) -mthumb $(FPU) $(FLOAT-ABI)
 
-#  -mcpu=cortex-m7 selects the cortex-m7 processor
-#  -mthumb selects the thumb instruction set
-#  -mfpu=fpv5-d16 specifies what floating-point hardware (or hardware emulation) is available on the target
-#  -mfloat-abi=hard enables hard boards which use an on-chip floating point unit
-#  https://gcc.gnu.org/onlinedocs/gcc/ARM-Options.html
+##### Compiler options #####
+CFLAGS = -g -Wall -T$(LINKER_SCRIPT)
+CFLAGS += $(CPU) -mthumb $(FPU) $(FLOAT-ABI) -fdata-sections -ffunction-sections --specs=nosys.specs
 
-CFLAGS = $(MCU) $(C_INCLUDES) -fdata-sections -ffunction-sections -g
+##### Project specific libraries #####
+SRC_FILES += $(wildcard Src/*.c)
+CFLAGS += -IInc
 
-LDFLAGS = $(MCU) $(LIBS)
+##### CMSIS libraries and source code #####
+CFLAGS += -I$(CMSIS_DIR)/Inc
 
-RELEASE_BIN_FILE = $(BUILD_DIR)/$(TARGET).bin
-RELEASE_ELF_FILE = $(BUILD_DIR)/$(TARGET).bin
+##### ST libraries and source code #####
+ST_SRC_FILES += $(wildcard $(ST_DIR)/Src/*.c)
+CFLAGS += -I$(ST_DIR)/Inc
+ST_ASM_FILES += $(wildcard $(ST_DIR)/Src/*.s)
 
-all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
-
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
-	$(CC) -c $(CFLAGS) -Wall $< -o $@
-
-$(BUILD_DIR)/$(TARGET).elf: $(OBJECTS)
-	$(CC) $(OBJECTS) $(LDFLAGS) -o $@
-	$(SZ) $@
-
-$(BUILD_DIR)/%.hex: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
-	$(HEX) $< $@
-
-$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
-	$(BIN) $< $@
+OBJECTS = $(SRC_FILES:Src/%.c=$(BUILD_DIR)/%.o) $(ST_SRC_FILES:$(ST_DIR)/Src/%.c=$(BUILD_DIR)/%.o) $(ST_ASM_FILES:$(ST_DIR)/Src/%.s=$(BUILD_DIR)/%.o)
 
 $(BUILD_DIR):
 	mkdir $@
 
-load: $(BUILD_DIR)/$(TARGET).bin 
-	openocd -f interface/stlink-v2-1.cfg -f target/stm32f7x.cfg -c init -c "reset halt" -c halt -c "flash write_image erase $(RELEASE_BIN_FILE) 0x8000000" -c "verify_image $(RELEASE_BIN_FILE) 0x8000000" -c "reset run" -c shutdown
+all:  $(BUILD_DIR)/$(PROJ_NAME).bin | $(BUILD_DIR)
 
-#	OPENOCD Flag
-#	-f is used to define the interface for programming the board
-# 	-c runs a command
+test:
+	@echo $(OBJECTS)
+
+##### Flash code to board using OpenOCD #####
+load: $(BUILD_DIR)/$(PROJ_NAME).bin
+	openocd -f interface/stlink-v2-1.cfg -f target/stm32f7x.cfg -c init -c "reset halt" -c "flash write_image erase $^ 0x8000000" -c "verify_image $^ 0x8000000" -c "reset run" -c shutdown
+
+##### Print out disassembly of specified function using GDB #####
+##### USAGE EXAMPLE: 	make disass FUNC=main 				#####
+disass: $(BUILD_DIR)/$(PROJ_NAME).elf
+	$(GDB) $^ -batch -ex 'disass /r $(FUNC)'
 
 clean:
-	-rm -fR $(BUILD_DIR)
+	rm -f $(BUILD_DIR)/$(PROJ_NAME).bin $(BUILD_DIR)/$(PROJ_NAME).elf $(BUILD_DIR)/*.o
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/%.o: $(ST_SRC_DIR)/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+#-c tells compiler not to link the file
+$(BUILD_DIR)/%.o: $(ST_SRC_DIR)/%.s
+	$(CC) $(CFLAGS) -c $^ -o $@
+
+$(BUILD_DIR)/$(PROJ_NAME).elf: $(OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $^
+
+$(BUILD_DIR)/$(PROJ_NAME).bin: $(BUILD_DIR)/$(PROJ_NAME).elf
+	$(OBJCOPY) -O binary $^ $@
