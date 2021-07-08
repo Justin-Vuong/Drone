@@ -1,3 +1,10 @@
+ST Link LED colour
+	LED is blinking RED: 		the first USB enumeration with the PC is taking place. If it keeps blinking RED, maybe the USB driver is NOT found.
+	LED is RED: 				communication between ST-LINK/V2 and the PC is established (end of enumeration).
+	LED is blinking GREEN/RED: 	data are being exchanged between the target and the PC.
+	LED is GREEN: 				the last communication has been successful.
+	LED is ORANGE: 				ST-LINK/V2 communication with the target has failed.
+
 maskable interrupt vs non maskable interrupt	
 
 	A non-maskable interrupt is a hardware interrupt that cannot be disabled or ignored by the instructions of CPU.
@@ -25,3 +32,30 @@ PLL = Phase-Locked Loop
 RCC = Reset and Control Clock
 AHB = Advanced High-performance Bus
 ARR = Auto Reload Register
+
+PWM Notes
+	- The TIMx_CCRx register can be updated at any time by software to control the output
+		waveform, provided that the preload register is not enabled (OCxPE=’0’, else TIMx_CCRx
+		shadow register is updated only at the next update event UEV)
+	- OCx can be changed using CCxP bit in TIMx_CCER register. OCx output is enabled by a combination 
+	of the CCxE, CCxNE, MOE, OSSI and OSSR bits (TIMx_CCER and TIMx_BDTR registers). 
+	- In PWM mode 1 is when signal is high until overflow value is reached
+	- There are 4 capture/control registers that can be triggered on the same timer
+	- When a match is found between the capture/compare register and the counter, the output compare function:
+		• Assigns the corresponding output pin to a programmable value defined by the output
+		compare mode (OCxM bits in the TIMx_CCMRx register) and the output polarity (CCxP
+		bit in the TIMx_CCER register). The output pin can keep its level (OCXM=0000), be set
+		active (OCxM=0001), be set inactive (OCxM=0010) or can toggle (OCxM=0011) on
+		match.
+		• Sets a flag in the interrupt status register (CCxIF bit in the TIMx_SR register).
+		• Generates an interrupt if the corresponding interrupt mask is set (CCXIE bit in the
+		TIMx_DIER register).
+		• Sends a DMA request if the corresponding enable bit is set (CCxDE bit in the
+		TIMx_DIER register, CCDS bit in the TIMx_CR2 register for the DMA request
+		selection).
+	- Using a 16 bit counter
+	- The PWM timer can reset when:
+		• Counter overflow/underflow
+		• Setting the UG bit
+		• Update generation through the slave mode controller
+	- Capture mode is input and Compare mode is output
