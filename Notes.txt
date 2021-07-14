@@ -23,7 +23,6 @@ PLL phase locked loop
 
 There is an external oscillator on the ST link which allows the clock speed to reach 216 MHz
 
-
 APB = Advanced High-performance Bus
 HSE = High Speed External Clock
 HCLK = Main CLU Clock 
@@ -59,3 +58,16 @@ PWM Notes
 		• Setting the UG bit
 		• Update generation through the slave mode controller
 	- Capture mode is input and Compare mode is output
+
+ADC Notes
+	- Clock comes from APB2 (108MHz)
+		- The max ADC clock is 36 MHz which means a minimum prescalar of 3 needs to be set (4 is chosen since thats closest)
+			- see fADC under "ADC characteristics" https://www.st.com/resource/en/datasheet/stm32f765zi.pdf
+		- 
+	- ADC supply requirements: 2.4 V to 3.6 V at full speed and down to 1.8 V at slower speed
+	- There are 3 ADC on the board but each with multiple channels. You set the order that the channels are read from in teh ADC->SQR3 register. There are 4 bits of priority as there are 16 channels
+	- Scan mode is used to scan a group of analog channels (if you are using 2 channels on the same ADC)
+	- To read from more channels:
+		->change the L bits in ADC1->SQR1 to the number of channels you want to read
+		->Enable the pins
+		->Add the channel number to the sequence STTD1->SQR3 
