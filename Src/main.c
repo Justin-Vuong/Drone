@@ -347,8 +347,121 @@ void I2C_Config(void)
 	//Set the peripheral enable bit in the I2C_CR1 register. pg 1225
 	I2C1->CR1 |= I2C_CR1_PE;
 }
+//Pass in an array of size 3 in gyroData
+void I2C_ReadMpuGyroRegisters(uint16_t* gyroData)
+{
+	//GYRO_XOUT (high and low) are read first as they are registers 67-68
+	//GYRO_YOUT (high and low) are read second as they are registers 68-69
+	//GYRO_ZOUT (high and low) are read third as they are registers 70-71 
+	
+	//Set the slave address to 0x68 and the number of bytes to be transfered to 1 in the I2C control register 2. pg 1227
+	I2C1->CR2 = 0;
+	I2C1->CR2 |= (0x68 << 1) | (1 << 16);
+	//Set the addressing mode to 7 bits and set the master transfer direction to write in the I2C control register 2. pg 1227
+	I2C1->CR2 &= ~(I2C_CR2_ADD10 | I2C_CR2_RD_WRN);
+	//Set the START bit in I2C_CR2 register. pg 1227
+	I2C1->CR2 |= I2C_CR2_START;
+	
+	//Wait for register to be ready for data
+	while(!(I2C1->ISR & I2C_ISR_TXIS));
+	//Send sensor data register that you want to read
+	I2C1->TXDR = 116;
+	
+	//Wait for the data to be written in the register
+	while(!(I2C1->ISR & I2C_ISR_TC));
+	
+	//Send start signal with read, set numBytes = 2
+	I2C1->CR2 = 0;
+	I2C1->CR2 |= (0x68 << 1) | (6 << 16) | I2C_CR2_RD_WRN; //| I2C_CR2_AUTOEND ;
+	I2C1->CR2 &= ~(I2C_CR2_ADD10);
+	
+	//Send another start condition
+	I2C1->CR2 |= I2C_CR2_START;
+	
+	//Wait for data received
+	while(!(I2C1->ISR & I2C_ISR_RXNE));
+	gyroData[0] = I2C1->RXDR<<8;
+		
+	//Wait for data received
+	while(!(I2C1->ISR & I2C_ISR_RXNE));
+	gyroData[0] |= I2C1->RXDR;
 
-void I2C_ReadMpuRegister(uint8_t reg_addr)
+	//Wait for data received
+	while(!(I2C1->ISR & I2C_ISR_RXNE));
+	gyroData[1] = I2C1->RXDR<<8;
+		
+	//Wait for data received
+	while(!(I2C1->ISR & I2C_ISR_RXNE));
+	gyroData[1] |= I2C1->RXDR;
+
+	//Wait for data received
+	while(!(I2C1->ISR & I2C_ISR_RXNE));
+	gyroData[2] = I2C1->RXDR<<8;
+		
+	//Wait for data received
+	while(!(I2C1->ISR & I2C_ISR_RXNE));
+	gyroData[2] |= I2C1->RXDR;
+
+	//Send stop bit 
+	I2C1->CR2 |= I2C_CR2_STOP;
+}
+
+uint16_t I2C_Read2ByteMpuRegister(uint8_t reg_addr)
+{
+	//https://invensense.tdk.com/wp-content/uploads/2015/02/RM-MPU-9250A-00-v1.6.pdf
+	//I2C_CR2_RD_WRN = 0 is a write
+	//I2C_CR2_RD_WRN = 1 is a read
+	/* From datasheet pg 1198
+	The number of TXIS events during the transfer corresponds to the value programmed in
+	NBYTES[7:0]. If the total number of data bytes to be sent is greater than 255, reload mode
+	must be selected by setting the RELOAD bit in the I2C_CR2 register. In this case, when
+	NBYTES data have been transferred, the TCR flag is set and the SCL line is stretched low
+	until NBYTES[7:0] is written to a non-zero value.
+	
+	To read the internal MPU-9250 registers, the master sends a start condition, followed by the I2C address and
+	a write bit, and then the register address that is going to be read. Upon receiving the ACK signal from the MPU9250, the master transmits a start signal followed by the slave address and read bit. As a result, the MPU9250 sends an ACK signal and the data. The communication ends with a not acknowledge (NACK) signal and
+	a stop bit from master. The NACK condition is defined such that the SDA line remains high at the 9th clock
+	cycle. 
+	*/
+	
+	//Set the slave address to 0x68 and the number of bytes to be transfered to 1 in the I2C control register 2. pg 1227
+	I2C1->CR2 = 0;
+	I2C1->CR2 |= (0x68 << 1) | (1 << 16);
+	//Set the addressing mode to 7 bits and set the master transfer direction to write in the I2C control register 2. pg 1227
+	I2C1->CR2 &= ~(I2C_CR2_ADD10 | I2C_CR2_RD_WRN);
+	//Set the START bit in I2C_CR2 register. pg 1227
+	I2C1->CR2 |= I2C_CR2_START;
+	
+	//Wait for register to be ready for data
+	while(!(I2C1->ISR & I2C_ISR_TXIS));
+	//Send sensor data register that you want to read
+	I2C1->TXDR = reg_addr;
+	
+	//Wait for the data to be written in the register
+	while(!(I2C1->ISR & I2C_ISR_TC));
+	
+	//Send start signal with read, set numBytes = 2
+	I2C1->CR2 = 0;
+	I2C1->CR2 |= (0x68 << 1) | (2 << 16) | I2C_CR2_RD_WRN; //| I2C_CR2_AUTOEND ;
+	I2C1->CR2 &= ~(I2C_CR2_ADD10);
+	
+	//Send another start condition
+	I2C1->CR2 |= I2C_CR2_START;
+	
+	//Wait for data received
+	while(!(I2C1->ISR & I2C_ISR_RXNE));
+	uint16_t recvData = I2C1->RXDR<<8;
+		
+	//Wait for data received
+	while(!(I2C1->ISR & I2C_ISR_RXNE));
+	recvData |= I2C1->RXDR;
+
+	//Send stop bit 
+	I2C1->CR2 |= I2C_CR2_STOP;
+	return recvData;
+}
+
+uint16_t I2C_ReadMpuRegister(uint8_t reg_addr)
 {
 	//https://invensense.tdk.com/wp-content/uploads/2015/02/RM-MPU-9250A-00-v1.6.pdf
 	//I2C_CR2_RD_WRN = 0 is a write
@@ -383,6 +496,7 @@ void I2C_ReadMpuRegister(uint8_t reg_addr)
 	while(!(I2C1->ISR & I2C_ISR_TC));
 	
 	//Send start signal with read, set numBytes = 1
+	I2C1->CR2 = 0;
 	I2C1->CR2 |= (0x68 << 1) | (1 << 16) | I2C_CR2_RD_WRN; //| I2C_CR2_AUTOEND ;
 	I2C1->CR2 &= ~(I2C_CR2_ADD10);
 	
@@ -391,10 +505,11 @@ void I2C_ReadMpuRegister(uint8_t reg_addr)
 	
 	//Wait for data received
 	while(!(I2C1->ISR & I2C_ISR_RXNE));
-	USART3_SendChar(I2C1->RXDR);
+	uint8_t recvData = I2C1->RXDR;
 	
 	//Send stop bit 
 	I2C1->CR2 |= I2C_CR2_STOP;
+	return recvData;
 }
 
 void I2C_WriteMpuRegister(uint8_t reg_addr, uint8_t reg_value)
@@ -476,6 +591,37 @@ void USART3_test(void)
 	}
 }
 
+void MPU9250_Config()
+{
+	//Write FIFO Enable register
+	I2C_WriteMpuRegister(35,7 << 4);
+	I2C_WriteMpuRegister(106,1 << 6);
+}
+
+void MPU9250_Test()
+{
+	uint16_t dataCountInFifo = 0;
+	uint16_t dataFromFifo[3];
+	dataCountInFifo = I2C_Read2ByteMpuRegister(114);
+	if (dataCountInFifo > 0)
+	{
+		I2C_ReadMpuGyroRegisters(dataFromFifo);
+		
+		//print num bytes in fifo
+		USART3_SendChar(dataCountInFifo>>8);
+		USART3_SendChar(dataCountInFifo);
+		//print x
+		USART3_SendChar(dataFromFifo[0]>>8);
+		USART3_SendChar(dataFromFifo[0]);
+		//print y
+		USART3_SendChar(dataFromFifo[1]>>8);
+		USART3_SendChar(dataFromFifo[1]);
+		//print z
+		USART3_SendChar(dataFromFifo[2]>>8);
+		USART3_SendChar(dataFromFifo[2]);
+		}
+}
+
 int main(void)
 {
 	Clock_Config();
@@ -485,16 +631,15 @@ int main(void)
 	ADC_Config();
 	UART3_Config();
 	I2C_Config();
-	I2C_ReadMpuRegister(35);
-	//Write FIFO Enable register
-	I2C_WriteMpuRegister(35,1 << 6);
+	MPU9250_Config();
 	while(1)
 	{
 		//PWM_test();
 		//blinky();
 		//ADC_test();
 		//USART3_test();
-		I2C_ReadMpuRegister(115);
+		MPU9250_Test();	
+		delay_ms(100);
 	}
 }
 
