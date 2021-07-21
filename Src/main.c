@@ -1,7 +1,7 @@
 //Using data sheet: https://www.st.com/resource/en/reference_manual/dm00224583-stm32f76xxx-and-stm32f77xxx-advanced-armbased-32bit-mcus-stmicroelectronics.pdf
 // and https://www.st.com/resource/en/datasheet/stm32f765zi.pdf
 #include <math.h>
-
+#include <stdint.h>
 #include "stm32f767xx.h"
 
 
@@ -57,7 +57,7 @@ void Clock_Config(void)
 	//Set Advanced High-performance Bus (AHB) Prescalar = /1, APB1 Prescaler = /4, APB2 Prescaler = /2 in RCC register. Pg 169
 	RCC->CFGR |= RCC_CFGR_PPRE2_DIV2 | RCC_CFGR_PPRE1_DIV4 | RCC_CFGR_HPRE_DIV1;
 	
-	//Set PLL_N = 216, PLL_M = 4, PLL_P = 2 and PLL_SRC to HSE in RCC PLL config register. Pg 166-167
+	//Set PLL_N = 432, PLL_M = 25, PLL_P = 2 and PLL_SRC to HSE in RCC PLL config register. Pg 166-167
 	RCC->PLLCFGR |= (PLL_M << 0) | (PLL_N << 6) | (PLL_P << 16) | RCC_PLLCFGR_PLLSRC_HSE;
 	
 	//Enable PLL and wait for ready bit in RCC clock config register. Pg 163
@@ -145,7 +145,7 @@ void PWM_Config(void)
 	//Look up table at https://www.st.com/resource/en/datasheet/stm32f765zi.pdf. pg 89
 	GPIOA->AFR[0] |= GPIO_AFRL_AFRL0_1;
 	
-	//Set GPIO pin speed to very high speed (0b11). pg 230
+	//Set GPIO pin speed to very high speed. pg 230
 	GPIOA->OSPEEDR |= GPIO_OSPEEDR_OSPEEDR0_1 | GPIO_OSPEEDR_OSPEEDR1_1;
 	
 	//Enable output for Capture/Compare Register 1 on TIM5. pg 1022
@@ -161,9 +161,9 @@ void PWM_Config(void)
 	//TIM5->DIER |= TIM_DIER_UIE;
 	
 	//The APB1 Timer clocks are run on a 108 MHz clock. Set prescalar to 108 to get millionth of a second tick. Note prescalar adds one to given value
-	TIM5->PSC = (unsigned int) (10800-1);
+	TIM5->PSC = (unsigned int) (108-1);
 	//Set timer auto reload register (ARR) ie overflow value for the timer to 100 to easily set dutycycle. Pg 1091
-	TIM5->ARR = (unsigned int) 10;
+	TIM5->ARR = (unsigned int) 1000;
 	
 	//Clear the counter, reinitialize it, and update the Event Generation Register (EGR)
 	TIM5->EGR |= TIM_EGR_UG;
@@ -207,7 +207,7 @@ void ADC_Config(void)
 	ADC1->CR2 |= ADC_CR2_EOCS | ADC_CR2_CONT;
 	
 	//Set SMP1 channel to refresh every 3 cycles in ADC Sample Time Register 2 (SMPR2) register 
-	ADC1->SMPR2 &= ~(ADC_SMPR2_SMP1_0 | ADC_SMPR2_SMP1_1 | ADC_SMPR2_SMP1_2);
+	ADC1->SMPR2 &= ~(ADC_SMPR2_SMP4_0 | ADC_SMPR2_SMP4_1 | ADC_SMPR2_SMP4_2);
 
 	//Set 1 channel for use in the ADC regular sequence register 1 (ADC_SQR1). pg 476
 	ADC1->SQR1 &= ~(ADC_SQR1_L_0 | ADC_SQR1_L_1 | ADC_SQR1_L_2);
@@ -247,10 +247,69 @@ void ADC_Start(uint32_t channel)
 	while (!(ADC1->SR & ADC_SR_EOC));
 }
 
-uint16_t ADC_Read(void)
+uint32_t ADC_Read(void)
 {
 	//Read the data from the ADC regular data register. pg 479
 	return ADC1->DR;
+}
+
+void USART3_SendChar(uint8_t data)
+{
+	/*
+	STEPS
+		1. Write the data into the USART_TDR register which will clear the TXE bit
+		2. Wait for the TC =1 which indicates that the transmission of the last frame has completed
+	*/
+	
+	//Load the data into the USART transmite data register. pg 1306
+	USART3->TDR = data;
+	
+	//Wait for Transmission Complete bit in the Interrupt and Status Register register. pg 1303
+	while (!(USART3->ISR & USART_ISR_TC));
+}
+
+void UART3_Config(void)
+{
+	//Using pins PD8 (TX) and PD9 (RX) but will route the signal to the ST-Link so the date can be read from its mini-usb interface
+	/*
+	STEPS
+		1. Enable UART Clock and GPIO clock
+		2. Configure the UART PINs for alternate functions
+		3. Program the M bit in the USART_CR1 to define the word length	
+		4. Enable the USART by writing the UE bit in USART_CR1 register to 1
+		5. Select the desired baud rate using the USART_BRR register
+		6. Enable the Tx/Rx by setting the TE and RE bits in the USART_CR1 register
+	*/
+	
+	//Enable UART3 and GPIO D in the RCC_APB1ENR register. pg 187
+	RCC->APB1ENR |= RCC_APB1ENR_USART3EN;
+	RCC->AHB1ENR |= RCC_AHB1ENR_GPIODEN;
+	RCC->DCKCFGR2 &= ~(RCC_DCKCFGR2_USART3SEL_0 | RCC_DCKCFGR2_USART3SEL_1);
+	
+	//Configure the alternate functions for the GPIO pins PD8 and PD9 in the GPIOx_MODER registers. pg 229
+	GPIOD->MODER |= GPIO_MODER_MODER8_1 | GPIO_MODER_MODER9_1;
+	//Set the GPIO port output speed to high speed in GPIO port output speed register. pg 230 
+	GPIOD->OSPEEDR |= GPIO_OSPEEDR_OSPEEDR8_0 | GPIO_OSPEEDR_OSPEEDR8_1;
+	//Set the TX line to have ouptut open drain in the Output type register. pg 229
+	GPIOD->OTYPER |= GPIO_OTYPER_OT8;
+	//Set the alternate functions 7 to route the data to the ST-Link in the GPIO alternate function registers. pg 233
+	GPIOD->AFR[1] |= GPIO_AFRH_AFRH0_0 | GPIO_AFRH_AFRH0_1 | GPIO_AFRH_AFRH0_2 | GPIO_AFRH_AFRH1_0 | GPIO_AFRH_AFRH1_1 | GPIO_AFRH_AFRH1_2;
+		
+	//Clear the control register then set the M0 and M1 bit to 0 to set 1 start bit, 8 data bits, and 1 stop bit. pg 1285
+	USART3->CR1 = 0x00000000;
+	USART3->CR2 = 0x00000000;
+	USART3->CR3 = 0x00000001;
+	
+	//USART3 is connected to APB1 clock but feeds USART peripheral with 20MHz. I want baud rate of 230400 so need 
+	//USARTDIV to be = 20000000/230400 = 87 in the Baud Rate Register. pg 1296 and 1257
+	USART3->BRR = 87UL;
+	
+	//Enable USART in the USART_CR1 register. pg 1285
+	USART3->CR1 |= USART_CR1_UE;
+	
+	//Enable the Tx/Rx by setting Transmitter enable (TE) and Receiver enable (RE) bits in the USART_CR1 register. pg 1285
+	USART3->CR1 |= USART_CR1_TE | USART_CR1_RE;
+	while (!(USART3->ISR & USART_ISR_TEACK));
 }
 
 void PWM_test(void)
@@ -281,8 +340,17 @@ void blinky(void)
 void ADC_test(void)
 {
 	ADC_Start(4);
-	float adcPercentage = ADC_Read()/pow(2,12);
-	TIM5->CCR1 = (uint16_t) (adcPercentage*100);
+	double adcPercentage = ADC_Read()/pow(2,12);
+	TIM5->CCR1 = (uint16_t) (adcPercentage*800); //Can raise to 1000 if more power is needed
+}
+
+void USART3_test(void)
+{
+	if (USART3->ISR & USART_ISR_RXNE)
+	{
+		uint32_t data = USART3->RDR;
+		USART3_SendChar(data);
+	}
 }
 
 int main(void)
@@ -292,14 +360,14 @@ int main(void)
 	GPIO_Config();
 	PWM_Config();
 	ADC_Config();
-	TIM5->CCR1 = 5;
+	UART3_Config();
 	while(1)
 	{
 		//PWM_test();
 		//blinky();
-		ADC_test();
+		//ADC_test();
+		USART3_test();
 		
 	}
-	//Find interrupt TIM5->SR & TIM_SR_UIF
-	//Set duty cycle with 	TIM5->CCR1
 }
+
