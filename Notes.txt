@@ -5,6 +5,7 @@ ST Link LED colour
 	LED is GREEN: 				the last communication has been successful.
 	LED is ORANGE: 				ST-LINK/V2 communication with the target has failed.
 
+=====================================================================================================================================================================================================================================================
 maskable interrupt vs non maskable interrupt	
 
 	A non-maskable interrupt is a hardware interrupt that cannot be disabled or ignored by the instructions of CPU.
@@ -32,6 +33,7 @@ RCC = Reset and Control Clock
 AHB = Advanced High-performance Bus
 ARR = Auto Reload Register
 
+=====================================================================================================================================================================================================================================================
 PWM Notes
 	- The TIMx_CCRx register can be updated at any time by software to control the output
 		waveform, provided that the preload register is not enabled (OCxPE=’0’, else TIMx_CCRx
@@ -59,6 +61,7 @@ PWM Notes
 		• Update generation through the slave mode controller
 	- Capture mode is input and Compare mode is output
 
+=====================================================================================================================================================================================================================================================
 ADC Notes
 	- Clock comes from APB2 (108MHz)
 		- The max ADC clock is 36 MHz which means a minimum prescalar of 3 needs to be set (4 is chosen since thats closest)
@@ -71,3 +74,173 @@ ADC Notes
 		->change the L bits in ADC1->SQR1 to the number of channels you want to read
 		->Enable the pins
 		->Add the channel number to the sequence STTD1->SQR3 
+
+=====================================================================================================================================================================================================================================================
+USART vs UART
+	UART = Universal Asynchronous Receiver Transmitter
+	USART = Universal Synchronous Asynchronous Receiver Transmitter
+	A USART can act in Asynchronous mode just like a UART. But is has the added capability of acting Synchronously. This means that the data is clocked. The clock is either recovered from the data itself or sent as an external signal. 
+	The data is regular and bits synchronize with the clock signal. No start and stop bits are used. This allows for a higher baud rate when operating synchronously because bit timings have a certain guarantee and more bits can be used for data instead of as headers.
+	Whereas a UART has an internal clock signal and data on the bus can have somewhat sloppier and aregular timing. UARTs require start and stop bits and Asynchronous data is only synchronized with the start and stop bits.
+
+	UART's main disadvantages:
+		-transmitter and receiver have to be set to or agree on a common bit-rate.
+		-timing must be accurate to at least a few %. Microcontrollers require a crystal based or calibrated RC clock.
+	Main disadvantages o syncronous protocols:
+		-uses a separate line for the clock
+		-clock pulses are shorter than a bit time, so the required bandwidth is wider than with NRZ UART.
+
+	Oversampling is when the receiver will sample the receive input per baud period (i.e. per data bit) for data recovery by discriminating between the valid incoming data and noise.
+USART for debugging
+	-Use USART3 as configuring the pins PD8 and PD9 to have alternate functions AF7 can route the USART communication through the mini usb interface of the ST-LINK. (PD9 is RX and PD8 is TX)
+
+=====================================================================================================================================================================================================================================================
+I2C Notes
+	-Using fast mode to get 400kbit/s. Need a min of 8 Mhz for clock
+	-Clock comes from PCLK1 (APB1 @ 54MHz)
+	-By default, it operates in slave mode. The interface automatically switches from slave to master when it generates a START condition, and from master to slave if an arbitration loss or a STOP generation occurs, allowing multimaster capability
+	-Data and addresses are transferred as 8-bit bytes, MSB first
+	-By default, an analog noise filter is present on the SDA and SCL inputs. This analog filter is compliant with the I2C specification which requires the suppression of spikes with a pulse width up to 50 ns in Fast-mode
+	-When the digital filter is enabled, the level of the SCL or the SDA line is internally changed only if it remains stable for more than DNF x I2CCLK periods
+		-Changing the filter configuration is not allowed when the I2C is enabled
+	-a delay is inserted before sending SDA output. This delay is tSDADEL = SDADEL x tPRESC + tI2CCLK where tPRESC = (PRESC+1)*t_I2CCLK.
+	-TSDADEL impacts the hold time t_(HD;DAT)
+	-The total SDA output delay is:
+		tSYNC1 + {[SDADEL x (PRESC+1) + 1] x tI2CCLK }
+		-tSYNC1 duration depends on these parameters:
+			– SCL falling slope
+			– When enabled, input delay brought by the analog filter: tAF(min) < tAF < tAF(max) ns.
+			– When enabled, input delay brought by the digital filter: tDNF = DNF x tI2CCLK
+			– Delay due to SCL synchronization to I2CCLK clock (2 to 3 I2CCLK periods)
+	-Changing the timing configuration is not allowed when the I2C is enabled.
+	-The SDA input fills the shift register. After the 8th SCL pulse (when the complete data byte is received), the shift register is copied into I2C_RXDR register if it is empty (RXNE=0). If RXNE=1, meaning that the previous received data byte 
+		has not yet been read, the SCL line is stretched low until I2C_RXDR is read. The stretch is inserted between the 8th and 9th SCL pulse (before the Acknowledge pulse).
+	- If the I2C_TXDR register is not empty (TXE=0), its content is copied into the shift register after the 9th SCL pulse (the Acknowledge pulse). Then the shift register content is shifted out on SDA line. If TXE=1, meaning that no data is 
+		written yet in I2C_TXDR, SCL line is stretched low until I2C_TXDR is written. The stretch is done after the 9th SCL pulse
+	- After sending the slave address: when the I2C master sends the address of the slave to talk to (including the read/write bit), a slave which recognizes its address sends an ACK. This tells the master that the slave it is trying to reach is actually on the bus. If no slave devices recognize the address, the result is a NACK
+	- Communication on the I2C bus starts when the master puts the START condition (S) on the bus, which is defined as a HIGH-to-LOW transition of the SDA line while SCL line is HIGH (see figure below). The bus is
+      considered to be busy until the master puts a STOP condition (P) on the bus, which is defined as a LOW to HIGH transition on the SDA line while SCL is HIGH (see figure below).
+	- The clock for the acknowledge signal is generated by the master, while the receiver generates the actual acknowledge signal by pulling down SDA and holding it low during the HIGH portion of the acknowledge clock pulse.
+	Slave mode
+	-The user must enable at least one slave address. Two registers I2C_OAR1 and I2C_OAR2 are available in order to program the slave own addresses OA1 and OA2.
+		-OA1 can be configured either in 7-bit mode (by default) or in 10-bit addressing mode by setting the OA1MODE bit in the I2C_OAR1 register. OA1 is enabled by setting the OA1EN bit in the I2C_OAR1 register.
+	-If additional slave addresses are required, the 2nd slave address OA2 can be configured. Up to 7 OA2 LSB can be masked by configuring the OA2MSK[2:0] bits in the I2C_OAR2 register. Therefore for OA2MSK configured from 1 to 6, only OA2[7:2],
+		OA2[7:3], OA2[7:4], OA2[7:5], OA2[7:6] or OA2[7] are compared with the received address. As soon as OA2MSK is not equal to 0, the address comparator for OA2 excludes the I2C reserved addresses (0000 XXX and 1111 XXX), which are not
+		acknowledged. If OA2MSK=7, all received 7-bit addresses are acknowledged (except reserved addresses). OA2 is always a 7-bit address.
+	-The General Call address is enabled by setting the GCEN bit in the I2C_CR1 register.
+	-When the I2C is selected by one of its enabled addresses, the ADDR interrupt status flag is set, and an interrupt is generated if the ADDRIE bit is set.
+	***By default, the slave uses its clock stretching capability, which means that it stretches the SCL signal at low level when needed, in order to perform software actions. If the master does not support clock stretching, the I2C must 
+	be configured with NOSTRETCH=1 in the I2C_CR1 register
+	-After receiving an ADDR interrupt, if several addresses are enabled the user must read the ADDCODE[6:0] bits in the I2C_ISR register in order to check which address matched. DIR flag must also be checked in order to know the transfer direction. 
+	READ MORE at Slave transmitter (pg 1188)
+
+	Master mode
+	- Clock I2C_TIMINGR register values are generated by CubeMX
+	- The user must then set the START bit in I2C_CR2 register after setting the other bits
+	-  In automatic end mode (AUTOEND=1), a NACK and a STOP are automatically sent after the last received byte.
+	Master transfer
+	- the TXIS flag is set after each byte transmission and after the 9th SCL pulse when an ACK is received.  The flag is cleared when the I2C_TXDR register is written with the next data byte to be transmitted
+	- The number of TXIS events during the transfer corresponds to the value programmed in NBYTES[7:0]. If the total number of data bytes to be sent is greater than 255, reload mode
+	  must be selected by setting the RELOAD bit in the I2C_CR2 register. In this case, when NBYTES data have been transferred, the TCR flag is set and the SCL line is stretched low
+      until NBYTES[7:0] is written to a non-zero value.
+	
+	Master read
+	- In the case of a read transfer, the RXNE flag is set after each byte reception, after the 8th SCL pulse.  The flag is cleared when I2C_RXDR is read.
+
+	Errors:
+		- A bus error is detected when a START or a STOP condition is detected and is not located after a multiple of 9 SCL clock pulses. A START or a STOP condition is detected when a SDA edge occurs while SCL is high.
+		- The bus error flag is set only if the I2C is involved in the transfer as master or addressed slave (i.e not during the address phase in slave mode).
+		- In case of a misplaced START or RESTART detection in slave mode, the I2C enters address recognition state like for a correct START condition.
+		- When a bus error is detected, the BERR flag is set in the I2C_ISR register, and an interrupt is generated if the ERRIE bit is set in the I2C_CR1 register
+		Arbitration lost (ARLO)
+			An arbitration loss is detected when a high level is sent on the SDA line, but a low level is sampled on the SCL rising edge.
+			- In master mode, arbitration loss is detected during the address phase, data phase and data acknowledge phase. In this case, the SDA and SCL lines are released, the
+			START control bit is cleared by hardware and the master switches automatically to slave mode.
+			- In slave mode, arbitration loss is detected during data phase and data acknowledge phase. In this case, the transfer is stopped, and the SCL and SDA lines are released.
+			When an arbitration loss is detected, the ARLO flag is set in the I2C_ISR register, and an interrupt is generated if the ERRIE bit is set in the I2C_CR1 register.
+
+	Registers
+		-I2CCLK is the clock with period t_i2cclk.
+			Must have:  t_i2cclk < (t_LOW-t_filters)/4
+						t_i2cclk < t_HIGH
+			for tLOW = SCL low time
+			 	tHIGH = SCL high time
+				tfilters = when enabled, sum of the delays brought by the analog filter and by the digital filter
+					-Analog filter delay is maximum 260 ns. Digital filter delay is DNF x tI2CCLK.
+		-PCLK clock period (tPCLK) must respect 
+			-tPCLK < 4/3 tSCL
+			for tSCL as teh SCL period
+	
+	Steps
+		-Enable I2C in RCC register
+		-enable I2C by setting the PE bit in the I2C_CR1 register
+		-set to ensure the proper timings, set PRESC[3:0], SCLDEL[3:0] and SDADEL[3:0] bits in the I2C_TIMINGR register
+		-From CubeMX, Timing register should be set to 0x6000030D
+		-The number of bytes to be transferred is programmed in the NBYTES[7:0] bit field in the I2C_CR2 register. 
+	
+	What I need to find about sensor:
+		-Does it have clock stretching
+
+=====================================================================================================================================================================================================================================================
+9-axis gyro/accel/compass
+http://www.hiletgo.com/ProductDetail/1953399.html
+https://invensense.tdk.com/wp-content/uploads/2015/02/RM-MPU-9250A-00-v1.6.pdf
+
+DLPF - digital low pass filter
+
+Info
+- The MPU-9250 contains a 512-byte FIFO register that is accessible via the Serial Interface.
+- The FIFO configuration register determines which data is written into the FIFO. Possible choices include gyro data, accelerometer data, temperature readings, auxiliary sensor readings, and FSYNC input
+- The interrupt function may be used to determine when new data is available.
+- Register 35 is used to write specific measurements to the FIFO
+- If the FIFO buffer has overflowed, the status bit FIFO_OFLOW_INT is automatically set to 1. This bit is located in INT_STATUS (Register 58). When the FIFO buffer has overflowed, the oldest data will be lost and new data will be written to the FIFO unless register 26 CONFIG, bit[6] FIFO_MODE = 1. 
+- If the FIFO buffer is empty, reading this register will return the last byte that was previously read from the FIFO until new data is available. The user should check FIFO_COUNT to ensure that the FIFO buffer is not read when empty.
+- Sample rate is defined in register 25
+- The FIFO is used so high and low registers read are from the same measurement
+
+I2C Address: 0x68 by default, 0x69 if AD0 is pulled high 
+	- Max fSCL 400kHz
+	- START Condition Hold Time 06us
+	- Rise time 20-300 ns
+
+PINS
+	-VCC
+		Can use 3-5V. (Internal low dropout regulator).
+	-GND
+	-SCL
+		I2C serial clock. SPI serial port clock (100 or 400 kHz I2C) or up to 1 MHz SPI (20 MHz in certain cases)
+	-SDA
+		I2C serial data	Can also be used for SPI serial data input (SDI)
+	-EDA or AUX_DA
+		Used for I2C data for slave devices. Connect to external devices
+	-ECL or AUX_CL
+		Used for I2C clock for slave devices. Connect to external devices
+	-ADD
+		Used for I2C address selection 
+	-INT
+		Interrupt digital output (totem pole or open-drain)
+	-NCS
+		Chip select (SPI mode only)
+	-FSYNC
+		Frame synchronization digital input. Connect to GND if unused
+
+How to read/write registers
+- To write the internal MPU-9250 registers, the master transmits the start condition (S), followed by the I2C
+address and the write bit (0). At the 9th clock cycle (when the clock is high), the MPU-9250 acknowledges the
+transfer. Then the master puts the register address (RA) on the bus. After the MPU-9250 acknowledges the
+reception of the register address, the master puts the register data onto the bus. This is followed by the ACK
+signal, and data transfer may be concluded by the stop condition (P). To write multiple bytes after the last ACK
+signal, the master can continue outputting data rather than transmitting a stop signal.
+- To read the internal MPU-9250 registers, the master sends a start condition, followed by the I2C address and
+a write bit, and then the register address that is going to be read. Upon receiving the ACK signal from the MPU9250, the master transmits a start signal followed by the slave address and read bit. As a result, the MPU9250 sends an ACK signal and the data. The communication ends with a not acknowledge (NACK) signal and
+a stop bit from master. The NACK condition is defined such that the SDA line remains high at the 9th clock
+cycle. 
+
+Gyroscope
+-GYRO_FS_SEL sets the degrees that can be measured per second
+	-0b00 sets it to 250 and with 16 bit ADC means that each degree will cause 131 change in LSB
+	The sample rate of the sensor = Gyroscope Output Rate (8800) / (1+SMPLRT_DIV)
+		-The gyroscope output rate is 8800kHz (set by DLPF_CFG and f_choice) 
+		-SMPLRT_DIV is the register 25 (set to 0)
+=====================================================================================================================================================================================================================================================
+
