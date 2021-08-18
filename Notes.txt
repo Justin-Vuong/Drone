@@ -242,5 +242,53 @@ Gyroscope
 	The sample rate of the sensor = Gyroscope Output Rate (8800) / (1+SMPLRT_DIV)
 		-The gyroscope output rate is 8800kHz (set by DLPF_CFG and f_choice) 
 		-SMPLRT_DIV is the register 25 (set to 0)
-=====================================================================================================================================================================================================================================================
 
+Accelerometer
+-ACCEL_FS_SELECT[1:0] chooses the acceleration full scale select. Set to 0b00 to get +- 2g readings
+-Interrupt status is cleared only by reading INT_STATUS register
+-INT pin level held until interrupt status is cleared.
+=====================================================================================================================================================================================================================================================
+Flash LIDAR sensor (VL53L0X)
+datasheet: https://www.digikey.com/en/datasheets/stmicroelectronics/stmicroelectronics-endm00279086#pf10
+API doc: https://documentation.help/VL53L0X-API/documentation.pdf
+
+- I2C address of 0x52
+- API low-level functions rely on a few set of read & write functions which perform the access to the device. These functions must be
+  implemented with respect to the platform on which API is compiled and running. Internal PAL register access functions should be used 
+- API polling high level functions do call the function VL53L0X_PollingDelay() inside their while loop. A default
+  implementation of the VL53L0X_PollingDelay() function is provided. You may decide to change and implement your own
+  VL53L0X_PollingDelay() function. Make it a 5 ms delay (configurable using VL53L0X_POLLINGDELAY_MS macro)
+- All API functions entry and leave can be logged to help debugging issues. By default logging is disabled please define
+  VL53L0X_LOG_ENABLE at compilation level. If logging is enabled, a small set of macros must be implemented to adapt logging operation to
+  the platform : _LOG_FUNCTION_START, _LOG_FUNCTION_END and _LOG_FUNCTION_END_FMT
+- By default logging is disabled please define VL53L0X_LOG_ENABLE at compilation level.
+
+MUST IMPLEMENT
+  I2C
+  - VL53L0X_WriteMulti()
+  - VL53L0X_ReadMulti()
+  - VL53L0X_WrByte()
+  - VL53L0X_WrWord()
+  - VL53L0X_WrDWord()
+  - VL53L0X_UpdateByte()
+  - VL53L0X_RdByte()
+  - VL53L0X_RdWord()
+  - VL53L0X_RdDWord()
+
+  LOGGING
+  - _LOG_FUNCTION_START
+  - _LOG_FUNCTION_END
+  - _LOG_FUNCTION_END_FMT
+
+I2C communication (datasheet pg 18)
+  -A message can only be terminated by the bus master, either by issuing a stop condition or by a negative acknowledge (that is, not pulling the SDA line low) after reading a complete byte during a read operation.
+  -The interface also supports auto-increment indexing. After the first data byte has been transferred, the index is automatically incremented by 1. The master can therefore send data bytes continuously to the slave until the slave fails to provide an acknowledge or the master terminates the write communication with a stop condition. If the auto-increment feature is used the master does not have to send address indexes to accompany the data bytes.
+Write 
+  1st Byte - Start condition then ACK from sensor
+  2nd Byte - 8 bit index to one of the registers
+Read
+  1st Byte - Start condition then ACK from sensor
+  2nd Byte - 8 bit index to one of the registers
+PINS
+- XSHUT is active low and can be used to keep the sensor in the reset state
+- GPIO1 is an interrupt pin that can notify when the sensor made a measurement 
