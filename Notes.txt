@@ -303,3 +303,5 @@ Read
 PINS
 - XSHUT is active low and can be used to keep the sensor in the reset state
 - GPIO1 is an interrupt pin that can notify when the sensor made a measurement 
+
+Measurement of around 80 is suitable for obstacle avoidance
