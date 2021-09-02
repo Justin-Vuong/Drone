@@ -247,6 +247,17 @@ Accelerometer
 -ACCEL_FS_SELECT[1:0] chooses the acceleration full scale select. Set to 0b00 to get +- 2g readings
 -Interrupt status is cleared only by reading INT_STATUS register
 -INT pin level held until interrupt status is cleared.
+
+Readings on Accelerometer
+Normal resting measurement
+600 900 17150 (XYZ)
+
+Slant towards Y arrow (second number goes negative)
+Slant away from Y arrow (second number goes up)
+
+Slant towards X arrow and first number goes down
+Slant away from X arrow and the first number goes up
+
 =====================================================================================================================================================================================================================================================
 Flash LIDAR sensor (VL53L0X)
 datasheet: https://www.digikey.com/en/datasheets/stmicroelectronics/stmicroelectronics-endm00279086#pf10

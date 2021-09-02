@@ -2,6 +2,8 @@
 // and https://www.st.com/resource/en/datasheet/stm32f765zi.pdf
 #include <math.h>
 #include <stdint.h>
+#include <string.h>
+#include <stdio.h>
 #include "stm32f767xx.h"
 
 #include "clock.h"
@@ -87,7 +89,7 @@ void PWM_Config(void)
 	TIM5->CR1 |= TIM_CR1_CEN;
 	
 	//Wait for the first cycle of the timer. Pg 1090
-	while(!(TIM5->SR & (1 << 0)));
+	while(!(TIM5->SR & (1UL << 0)));
 }
 
 void ADC_Config(void)
@@ -214,99 +216,114 @@ void MPU9250_Config()
 	//Enable GPIO C in RCC Advanced High-performance Bus 1 (AHB1) peripheral clock register. Pg 184
 	RCC->AHB1ENR |= RCC_AHB1ENR_GPIOCEN;
 	
-	//Set the pin to output mode (0b00) in GPIO port mode register. pg 229
-	GPIOC->MODER &= ~(3 << 12);
+	//Set the pin to input mode (0b00) in GPIO port mode register. pg 229
+	GPIOC->MODER &= ~(3UL << 12);
+	
+	//Set power pin to PB15
+	//Enable GPIO B in RCC Advanced High-performance Bus 1 (AHB1) peripheral clock register. Pg 184
+	RCC->AHB1ENR |= RCC_AHB1ENR_GPIOBEN;
+	
+	//Set the pin to output mode (0b01) in GPIO port mode register. pg 229
+	GPIOB->MODER |= (1UL << 30);
+	
+	GPIOB->OTYPER &= ~(1UL << 15);
+
+	//Set pin to Pull down
+	GPIOB->PUPDR &= ~(3 << 30);
+		
+	//Set pin speed to highest speed
+	GPIOB->OSPEEDR |= 2 << 30;
+
+}
+
+void MPU9250_Reset_Accel()
+{
+	//VCC needs to be held for 45 ms before measurements can be taken
+	GPIOB->BSRR |= GPIO_BSRR_BS15;
+	delay_ms(45);
 
 	//Write FIFO Enable register
 	//Gyro enable
-	//I2C_WriteMpuRegister(35,7 << 4);
+	//I2C_WriteMpuRegister(35,7UL << 4);
 	
 	//Enable the interrupt and add compare to last sample
-	I2C_WriteMpuRegister(105, 3 << 6);
+	I2C_WriteMpuRegister(105, 3UL << 6);
 	
 	//Enable Raw Sensor Data Ready interrupt to propagate to interrupt pin.
 	I2C_WriteMpuRegister(56, 1);
 
 	//Enable Accel data reads to fifo
-	I2C_WriteMpuRegister(35, 1 << 3);
+	I2C_WriteMpuRegister(35, 1U << 3);
+	//Set the sampleing rate of the sensor to 7kHz (prescalar to 255 on a 20Mhz clock)
+	I2C_WriteMpuRegister(26, 255U);
 
 	//Enable the fifo in the user control register
-	I2C_WriteMpuRegister(106,1 << 6);
-
+	I2C_WriteMpuRegister(106,1UL << 6);
 }
 
 void MPU9250_Gyro_Test()
 {
 	uint16_t dataCountInFifo = 0;
-	uint16_t dataFromFifo[3];
+	int16_t dataFromFifo[3];
 	dataCountInFifo = I2C_Read2ByteMpuRegister(114);
 	if (dataCountInFifo > 0)
 	{
+		char buffer[100];
+		memset(buffer, '\0', 100);
 		I2C_ReadMpuGyroRegisters(dataFromFifo);
 		
-		//print num bytes in fifo
-		USART3_SendChar(dataCountInFifo>>8);
-		USART3_SendChar(dataCountInFifo);
-		//print x
-		USART3_SendChar(dataFromFifo[0]>>8);
-		USART3_SendChar(dataFromFifo[0]);
-		//print y
-		USART3_SendChar(dataFromFifo[1]>>8);
-		USART3_SendChar(dataFromFifo[1]);
-		//print z
-		USART3_SendChar(dataFromFifo[2]>>8);
-		USART3_SendChar(dataFromFifo[2]);
-		}
+		snprintf(buffer, 100, "%u %d %d %d", dataCountInFifo, dataFromFifo[0], dataFromFifo[1], dataFromFifo[2]);
+		USART3_SendString(buffer);
+	}
 }
 
 void MPU9250_Accel_Test()
 {
+	/*
 	//Wait for the pin to go high
-	if(!(GPIOC->IDR & (1 << 6))){
-		//USART3_SendString("Interrupt Pin is low\n");
+	if(!(GPIOC->IDR & (1UL << 6))){
+		USART3_SendString("Not high\n");
 		return;
 	}
 	
 	uint8_t interruptStatus = I2C_ReadMpuRegister(58);
-	//USART3_SendString("Interrupt Status is: ");
-	//USART3_SendChar(interruptStatus);
-	//USART3_SendChar('\n');
 	if (!(interruptStatus & 1))
 	{
 		//If the RAW_DATA_RDY_INT interrupt was not triggered
 		USART3_SendString("Interrupt RAW_DATA_RDY_INT not detected");
 		return;
 	}
+	*/
+	MPU9250_Reset_Accel();
 	
-	uint16_t dataCountInFifo = 0;
-	uint16_t dataFromFifo[3];
-	
-	//Read Fifo count register
-	dataCountInFifo = (I2C_ReadMpuRegister(114) & 0x1F);
-	dataCountInFifo = (dataCountInFifo << 8) | I2C_ReadMpuRegister(115);
-	
-	if (dataCountInFifo > 0 && dataCountInFifo < 512)
+	for(int cnt = 0; cnt < 5; cnt++)
 	{
-		
-		I2C_ReadMpuAccelRegisters(dataFromFifo);
-		//USART3_SendString("Num Bytes in FIFO is: ");
-	  USART3_Send2Char(dataCountInFifo);
-		//print x
-		//USART3_SendString("X: ");
-		USART3_SendChar(dataFromFifo[0]>>8 & 0xFF);
-		USART3_SendChar(dataFromFifo[0] & 0xFF);
-		//print y
-		//USART3_SendString(",Y: ");
-		USART3_SendChar(dataFromFifo[1]>>8 & 0xFF);
-		USART3_SendChar(dataFromFifo[1] & 0xFF);
-		//print z
-		//USART3_SendString(",Z: ");
-		USART3_SendChar(dataFromFifo[2]>>8 & 0xFF);
-		USART3_SendChar(dataFromFifo[2] & 0xFF);
-		USART3_SendString("\n");
-		
-	}
-	
+			uint16_t dataCountInFifo = 0;
+			int16_t dataFromFifo[3];
+			
+			//Read Fifo count register
+			dataCountInFifo = (I2C_ReadMpuRegister(114) & 0x1F);
+			dataCountInFifo = (dataCountInFifo << 8) | I2C_ReadMpuRegister(115);
+			
+			if (dataCountInFifo > 0)
+			{
+				char buffer[100];
+				memset(buffer, '\0', 100);
+
+				I2C_ReadMpuAccelRegisters(dataFromFifo);
+				
+				snprintf(buffer, 100, "%u %d %d %d", dataCountInFifo, dataFromFifo[0], dataFromFifo[1], dataFromFifo[2]);
+				USART3_SendString(buffer);
+				USART3_SendString("\n");
+				
+				//Reset FIFO module aka clear buffer
+				I2C_WriteMpuRegister(106, 1UL << 2);
+				I2C_WriteMpuRegister(106, 1UL << 6);
+				//Send Accel data to Fifo
+				I2C_WriteMpuRegister(35, 1UL << 3);
+			}
+	}	
+	GPIOB->BSRR |= GPIO_BSRR_BS15;
 }
 
 int main(void)
@@ -327,6 +344,6 @@ int main(void)
 		//USART3_test();
 		//MPU9250_Gyro_Test();	
 		MPU9250_Accel_Test();
-		//delay_ms(100);
+		delay_ms(100);
 	}
 }

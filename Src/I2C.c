@@ -181,7 +181,7 @@ void I2C_WriteMpuRegister(uint8_t reg_addr, uint8_t reg_value)
 }
 
 //Pass in an array of size 3 in gyroData
-void I2C_ReadMpuGyroRegisters(uint16_t* gyroData)
+void I2C_ReadMpuGyroRegisters(int16_t* gyroData)
 { 
 	//GYRO_XOUT (high and low) are read first as they are registers 67-68
 	//GYRO_YOUT (high and low) are read second as they are registers 68-69
@@ -240,7 +240,7 @@ void I2C_ReadMpuGyroRegisters(uint16_t* gyroData)
 }
 
 //Pass in an array of size 3 in accelData
-void I2C_ReadMpuAccelRegisters(uint16_t* accelData)
+void I2C_ReadMpuAccelRegisters(int16_t* accelData)
 {
 	//ACCEL_XOUT (high and low) are read first as they are registers 59-60
 	//ACCEL_YOUT (high and low) are read second as they are registers 61-62
