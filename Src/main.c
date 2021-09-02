@@ -10,6 +10,7 @@
 #include "delay.h"
 #include "I2C.h"
 #include "UART.h"
+#include "vl53l0x.h"
 
 void GPIO_Config(void)
 {
@@ -326,6 +327,98 @@ void MPU9250_Accel_Test()
 	GPIOB->BSRR |= GPIO_BSRR_BS15;
 }
 
+void vl53l0x_Test(void)
+{
+	VL53L0X_Error Status = VL53L0X_ERROR_NONE;
+    VL53L0X_Dev_t MyDevice;
+    VL53L0X_Dev_t *pMyDevice = &MyDevice;
+    VL53L0X_Version_t                   Version;
+    VL53L0X_Version_t                  *pVersion   = &Version;
+    VL53L0X_DeviceInfo_t                DeviceInfo;
+
+    int32_t status_int;
+
+    USART3_SendString ("VL53L0X API Simple Ranging example\n\n");
+
+    // Initialize Comms
+    pMyDevice->I2cDevAddr      = 0x29;
+    pMyDevice->comms_type      =  1;
+    pMyDevice->comms_speed_khz =  400;
+
+    /*
+     *  Get the version of the VL53L0X API running in the firmware
+     */
+
+    if(Status == VL53L0X_ERROR_NONE)
+    {
+        status_int = VL53L0X_GetVersion(pVersion);
+        if (status_int != 0)
+            Status = VL53L0X_ERROR_CONTROL_INTERFACE;
+    }
+
+    /*
+     *  Verify the version of the VL53L0X API running in the firmware
+     */
+
+    if(Status == VL53L0X_ERROR_NONE)
+    {
+        if( pVersion->major != VERSION_REQUIRED_MAJOR ||
+            pVersion->minor != VERSION_REQUIRED_MINOR ||
+            pVersion->build != VERSION_REQUIRED_BUILD )
+        {
+            char msg[250];
+            snprintf(msg, 250, "VL53L0X API Version Error: Your firmware has %d.%d.%d (revision %ld). This example requires %d.%d.%d.\n",
+                pVersion->major, pVersion->minor, pVersion->build, pVersion->revision,
+                VERSION_REQUIRED_MAJOR, VERSION_REQUIRED_MINOR, VERSION_REQUIRED_BUILD);
+            USART3_SendString(msg);
+        }
+    }
+
+
+    if(Status == VL53L0X_ERROR_NONE)
+    {
+        USART3_SendString ("Call of VL53L0X_DataInit\n");
+        Status = VL53L0X_DataInit(&MyDevice); // Data initialization
+        print_pal_error(Status);
+    }
+
+    if(Status == VL53L0X_ERROR_NONE)
+    {
+        Status = VL53L0X_GetDeviceInfo(&MyDevice, &DeviceInfo);
+        if(Status == VL53L0X_ERROR_NONE)
+        {
+            char msg[150];
+            USART3_SendString("VL53L0X_GetDeviceInfo:\n");
+            snprintf(msg, 150, "Device Name : %s\n", DeviceInfo.Name);
+            USART3_SendString(msg);
+            snprintf(msg, 150, "Device Type : %s\n", DeviceInfo.Type);
+            USART3_SendString(msg);
+            snprintf(msg, 150, "Device ID : %s\n", DeviceInfo.ProductId);
+            USART3_SendString(msg);
+            snprintf(msg, 150, "ProductRevisionMajor : %d\n", DeviceInfo.ProductRevisionMajor);
+            USART3_SendString(msg);
+            snprintf(msg, 150, "ProductRevisionMinor : %d\n", DeviceInfo.ProductRevisionMinor);
+            USART3_SendString(msg);
+
+        if ((DeviceInfo.ProductRevisionMinor != 1) && (DeviceInfo.ProductRevisionMinor != 1)) {
+        	snprintf(msg, 150, "Error expected cut 1.1 but found cut %d.%d\n",
+                       DeviceInfo.ProductRevisionMajor, DeviceInfo.ProductRevisionMinor);
+                Status = VL53L0X_ERROR_NOT_SUPPORTED;
+            USART3_SendString(msg);
+            }
+            
+        }
+        print_pal_error(Status);
+    }
+
+    if(Status == VL53L0X_ERROR_NONE)
+    {
+        Status = rangingTest(pMyDevice);
+    }
+
+    print_pal_error(Status);
+}
+
 int main(void)
 {
 	Clock_Config();
@@ -343,7 +436,8 @@ int main(void)
 		//ADC_test();
 		//USART3_test();
 		//MPU9250_Gyro_Test();	
-		MPU9250_Accel_Test();
+		//MPU9250_Accel_Test();
+		vl53l0x_Test();
 		delay_ms(100);
 	}
 }
