@@ -11,6 +11,8 @@
 #include "I2C.h"
 #include "UART.h"
 #include "vl53l0x.h"
+#include "nRFL01.h"
+#include "SPI.h"
 
 void GPIO_Config(void)
 {
@@ -419,6 +421,16 @@ void vl53l0x_Test(void)
     print_pal_error(Status);
 }
 
+void nRFL01_Test(void)
+{
+	uint8_t data[] = {0x12, 0x13, 0x14};
+	CE_Disable();
+	CS_Enable();
+	SPI_Transmit(data, 3);
+	CE_Enable();
+	CS_Disable();
+}
+
 int main(void)
 {
 	Clock_Config();
@@ -429,6 +441,7 @@ int main(void)
 	UART3_Config();
 	I2C_Config();
 	MPU9250_Config();
+	nRFL01_Config();
 	while(1)
 	{
 		//PWM_test();
@@ -437,7 +450,8 @@ int main(void)
 		//USART3_test();
 		//MPU9250_Gyro_Test();	
 		//MPU9250_Accel_Test();
-		vl53l0x_Test();
-		delay_ms(100);
+		//vl53l0x_Test();
+		nRFL01_Test();
+		//delay_ms(100);
 	}
 }
