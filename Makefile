@@ -93,34 +93,34 @@ print:
 	echo $(DRONE_OBJECTS)
 clean:
 	rm -f $(BUILD_DIR)/*
-	
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/%.o: $(ST_SRC_DIR)/%.c
+$(BUILD_DIR)/%.o: $(ST_SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) $< -o $@
 
 #-c tells compiler not to link the file
-$(BUILD_DIR)/%.o: $(ST_SRC_DIR)/%.s
+$(BUILD_DIR)/%.o: $(ST_SRC_DIR)/%.s | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $^ -o $@
 
-$(BUILD_DIR)/%.o: $(FREERTOS_SRC_DIR)/%.c
+$(BUILD_DIR)/%.o: $(FREERTOS_SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/%.o: $(FREERTOS_PORTABLE_COMPILER_SRC_DIR)/%.c
+$(BUILD_DIR)/%.o: $(FREERTOS_PORTABLE_COMPILER_SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/%.o: $(FREERTOS_PORTABLE_MEM_SRC_DIR)/%.c
+$(BUILD_DIR)/%.o: $(FREERTOS_PORTABLE_MEM_SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/%.o: $(VL53L0X_CORE_SRC_DIR)/%.c
+$(BUILD_DIR)/%.o: $(VL53L0X_CORE_SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/%.o: $(VL53L0X_PLATFORM_SRC_DIR)/%.c
+$(BUILD_DIR)/%.o: $(VL53L0X_PLATFORM_SRC_DIR)/%.c | $(BUILD_DIR)
 	$(CC) -c $(CFLAGS) $< -o $@
 
-$(BUILD_DIR)/$(PROJ_NAME).elf: $(DRONE_OBJECTS)
+$(BUILD_DIR)/$(PROJ_NAME).elf: $(DRONE_OBJECTS) | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -o $@ $^
 
-$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
+$(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf | $(BUILD_DIR)
 	$(OBJCOPY) -O binary $^ $@

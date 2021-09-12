@@ -180,7 +180,13 @@ I2C Notes
 	
 	What I need to find about sensor:
 		-Does it have clock stretching
-
+=====================================================================================================================================================================================================================================================
+SPI Notes
+- nRFL01+ uses an SCK of 0-10MHz. Set ST prescalar to 8 to get 5.3 MHz (experimentally measured)
+- Clock polarity is 0 when idle
+- Data is read on rising edge of the clock (CPHA is 0)
+- Data is sent and read with MSB first
+- Using SPI Motorola mode
 =====================================================================================================================================================================================================================================================
 9-axis gyro/accel/compass
 http://www.hiletgo.com/ProductDetail/1953399.html
