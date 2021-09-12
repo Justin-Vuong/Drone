@@ -12,7 +12,10 @@ BUILD_DIR = build
 LINKER_SCRIPT = $(ST_DIR)/STM32F767ZITx_FLASH.ld
 ST_SRC_DIR = STM32/Src
 SRC_DIR = Src
-
+FREERTOS_DIR = FreeRTOS
+FREERTOS_SRC_DIR = FreeRTOS/Source
+FREERTOS_PORTABLE_COMPILER_SRC_DIR = FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1
+FREERTOS_PORTABLE_MEM_SRC_DIR = FreeRTOS/Source/portable/MemMang
 ##### Toolchain #####
 TRIPLE  = 	arm-none-eabi
 CC 		=	${TRIPLE}-gcc
@@ -42,6 +45,13 @@ ST_SRC_FILES += $(wildcard $(ST_DIR)/Src/*.c)
 CFLAGS += -I$(ST_DIR)/Inc
 ST_ASM_FILES += $(wildcard $(ST_DIR)/Src/*.s)
 
+##### FreeRTOS libraries and source code #####
+FREERTOS_SRC_FILES += $(wildcard $(FREERTOS_SRC_DIR)/*.c)
+CFLAGS += -I$(FREERTOS_DIR)/include \
+-I$(FREERTOS_DIR)/Source/include \
+-I$(FREERTOS_DIR)/Source/CMSIS_RTOS \
+-I$(FREERTOS_DIR)/Source/portable/GCC/ARM_CM7/r0p1
+
 ##### VL53L0X libraries and source code #####
 VL53L0X_PLATFORM_SRC_FILES += $(wildcard $(VL53L0X_DIR)/platform/src/*.c)
 VL53L0X_CORE_SRC_FILES += $(wildcard $(VL53L0X_DIR)/core/src/*.c)
@@ -49,7 +59,16 @@ CFLAGS += -I$(VL53L0X_DIR)/core/inc -I$(VL53L0X_DIR)/platform/inc
 # To enable logs for VL53L0X
 #CFLAGS += -D VL53L0X_LOG_ENABLE
 
-DRONE_OBJECTS = $(SRC_FILES:Src/%.c=$(BUILD_DIR)/%.o) $(ST_SRC_FILES:$(ST_DIR)/Src/%.c=$(BUILD_DIR)/%.o) $(ST_ASM_FILES:$(ST_DIR)/Src/%.s=$(BUILD_DIR)/%.o) $(VL53L0X_CORE_SRC_FILES:$(VL53L0X_DIR)/core/src/%.c=$(BUILD_DIR)/%.o) $(VL53L0X_PLATFORM_SRC_FILES:$(VL53L0X_DIR)/platform/src/%.c=$(BUILD_DIR)/%.o)
+DRONE_OBJECTS = \
+$(SRC_FILES:Src/%.c=$(BUILD_DIR)/%.o) \
+$(ST_SRC_FILES:$(ST_DIR)/Src/%.c=$(BUILD_DIR)/%.o) \
+$(ST_ASM_FILES:$(ST_DIR)/Src/%.s=$(BUILD_DIR)/%.o) \
+$(FREERTOS_SRC_FILES:$(FREERTOS_SRC_DIR)/%.c=$(BUILD_DIR)/%.o) \
+$(VL53L0X_CORE_SRC_FILES:$(VL53L0X_DIR)/core/src/%.c=$(BUILD_DIR)/%.o) \
+$(VL53L0X_PLATFORM_SRC_FILES:$(VL53L0X_DIR)/platform/src/%.c=$(BUILD_DIR)/%.o) \
+$(BUILD_DIR)/port.o \
+$(BUILD_DIR)/heap_4.o
+
 RELEASE_BIN_FILE = $(BUILD_DIR)/$(PROJ_NAME).bin
 DEBUG_ELF_FILE = $(BUILD_DIR)/$(PROJ_NAME).elf
 
@@ -70,9 +89,11 @@ connect:
 gdb:
 	$(GDB) --eval-command="target remote localhost:3333" --eval-command="monitor reset halt" $(DEBUG_ELF_FILE)
 
+print:
+	echo $(DRONE_OBJECTS)
 clean:
 	rm -f $(BUILD_DIR)/*
-
+	
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
@@ -82,6 +103,15 @@ $(BUILD_DIR)/%.o: $(ST_SRC_DIR)/%.c
 #-c tells compiler not to link the file
 $(BUILD_DIR)/%.o: $(ST_SRC_DIR)/%.s
 	$(CC) $(CFLAGS) -c $^ -o $@
+
+$(BUILD_DIR)/%.o: $(FREERTOS_SRC_DIR)/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/%.o: $(FREERTOS_PORTABLE_COMPILER_SRC_DIR)/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
+
+$(BUILD_DIR)/%.o: $(FREERTOS_PORTABLE_MEM_SRC_DIR)/%.c
+	$(CC) -c $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/%.o: $(VL53L0X_CORE_SRC_DIR)/%.c
 	$(CC) -c $(CFLAGS) $< -o $@
